@@ -29,11 +29,11 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.TickEvent.Phase;
 
 /**
- * 
+ *
  * @author AtomicStryker
- * 
+ *
  * Rewritten and now-awesome Dynamic Lights Mod.
- * 
+ *
  * Instead of the crude base edits and inefficient giant loops of the original,
  * this Mod uses ASM transforming to hook into Minecraft with style and has an
  * API that does't suck. It also uses Forge events to register dropped Items.
@@ -43,39 +43,39 @@ import cpw.mods.fml.common.gameevent.TickEvent.Phase;
 public class DynamicLights
 {
     private Minecraft mcinstance;
-    
+
     @Instance("DynamicLights")
     private static DynamicLights instance;
-    
+
     /*
      * Optimization - instead of repeatedly getting the same List for the same World,
      * just check once for World being equal.
      */
     private IBlockAccess lastWorld;
     private ConcurrentLinkedQueue<DynamicLightSourceContainer> lastList;
-    
+
     /**
      * This Map contains a List of DynamicLightSourceContainer for each World. Since the client can only
      * be in a single World, the other Lists just float idle when unused.
      */
     private ConcurrentHashMap<World, ConcurrentLinkedQueue<DynamicLightSourceContainer>> worldLightsMap;
-    
+
     /**
      * Keeps track of the toggle button.
      */
     private boolean globalLightsOff;
-    
+
     /**
      * The Keybinding instance to monitor
      */
     private KeyBinding toggleButton;
     private long nextKeyTriggerTime;
-    
+
     /**
      * whether or not the colored lights mod is present
      */
     private static boolean coloredLights;
-    
+
     @EventHandler
     public void preInit(FMLPreInitializationEvent evt)
     {
@@ -85,7 +85,7 @@ public class DynamicLights
         FMLCommonHandler.instance().bus().register(this);
         nextKeyTriggerTime = System.currentTimeMillis();
     }
-    
+
     @EventHandler
     public void load(FMLInitializationEvent evt)
     {
@@ -93,14 +93,14 @@ public class DynamicLights
         ClientRegistry.registerKeyBinding(toggleButton);
         coloredLights = Loader.isModLoaded("easycoloredlights");
     }
-    
+
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent tick)
     {
         if (tick.phase == Phase.END && mcinstance.theWorld != null)
         {
             ConcurrentLinkedQueue<DynamicLightSourceContainer> worldLights = worldLightsMap.get(mcinstance.theWorld);
-            
+
             if (worldLights != null)
             {
                 Iterator<DynamicLightSourceContainer> iter = worldLights.iterator();
@@ -115,13 +115,13 @@ public class DynamicLights
                     }
                 }
             }
-            
+
             if (mcinstance.currentScreen == null && toggleButton.getIsKeyPressed() && System.currentTimeMillis() >= nextKeyTriggerTime)
             {
                 nextKeyTriggerTime = System.currentTimeMillis() + 1000l;
                 globalLightsOff = !globalLightsOff;
                 mcinstance.ingameGUI.getChatGUI().printChatMessage(new ChatComponentText("Dynamic Lights globally "+(globalLightsOff?"off":"on")));
-                
+
                 World world = mcinstance.theWorld;
                 if (world != null)
                 {
@@ -138,7 +138,7 @@ public class DynamicLights
             }
         }
     }
-    
+
     /**
      * Used not only to toggle the Lights, but any Ticks in the sub-modules
      * @return true when all computation and tracking should be suspended, false otherwise
@@ -147,12 +147,12 @@ public class DynamicLights
     {
         return instance.globalLightsOff;
     }
-    
+
     /**
      * Exposed method which is called by the transformed World.computeBlockLightValue method instead of
      * Block.blocksList[blockID].getLightValue. Loops active Dynamic Light Sources and if it finds
      * one for the exact coordinates asked, returns the Light value from that source if higher.
-     * 
+     *
      * @param world World queried
      * @param block Block instance of target coords
      * @param x coordinate queried
@@ -160,41 +160,27 @@ public class DynamicLights
      * @param z coordinate queried
      * @return Block.blocksList[blockID].getLightValue or Dynamic Light value, whichever is higher
      */
-    public static int getLightValue(IBlockAccess world, Block block, int x, int y, int z)
-    {
+    @SuppressWarnings("unused")
+    public static int getLightValue(IBlockAccess world, Block block, int x, int y, int z) {
         int vanillaValue = block.getLightValue(world, x, y, z);
-        
-        if (instance == null || instance.globalLightsOff || world instanceof WorldServer)
-        {
+        if (instance == null || instance.globalLightsOff || world instanceof WorldServer) {
             return vanillaValue;
         }
-        
-        if (!world.equals(instance.lastWorld) || instance.lastList == null)
-        {
+        if (!world.equals(instance.lastWorld) || instance.lastList == null) {
             instance.lastWorld = world;
             instance.lastList = instance.worldLightsMap.get(world);
         }
-        
         int dynamicValue = 0;
-        if (instance.lastList != null && !instance.lastList.isEmpty())
-        {
-            for (DynamicLightSourceContainer light : instance.lastList)
-            {
-                if (light.getX() == x)
-                {
-                    if (light.getY() == y)
-                    {
-                        if (light.getZ() == z)
-                        {
-                            dynamicValue = maxLight(dynamicValue, light.getLightSource().getLightLevel());
-                        }
-                    }
+        if (instance.lastList != null && !instance.lastList.isEmpty()) {
+            for (DynamicLightSourceContainer light : instance.lastList) {
+                if (light.getX() == x && light.getY() == y && light.getZ() == z) {
+                    dynamicValue = Math.max(dynamicValue, light.getLightSource().getLightLevel());
                 }
             }
         }
-        return maxLight(vanillaValue, dynamicValue);
+        return Math.max(vanillaValue, dynamicValue);
     }
-    
+
     /**
      * Exposed method to register active Dynamic Light Sources with. Does all the necessary
      * checks, prints errors if any occur, creates new World entries in the worldLightsMap
@@ -238,7 +224,7 @@ public class DynamicLights
             System.err.println("Cannot add Dynamic Light: Attachment Entity is null!");
         }
     }
-    
+
     /**
      * Exposed method to remove active Dynamic Light sources with. If it fails for whatever reason,
      * it does so quietly.
@@ -265,7 +251,7 @@ public class DynamicLights
                             break;
                         }
                     }
-                    
+
                     if (iterContainer != null)
                     {
                         world.updateLightByType(EnumSkyBlock.Block, iterContainer.getX(), iterContainer.getY(), iterContainer.getZ());
@@ -274,7 +260,7 @@ public class DynamicLights
             }
         }
     }
-    
+
     /**
      * Compatibility extension for CptSpaceToaster's colored lights mod
      */
